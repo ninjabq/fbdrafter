@@ -7,12 +7,23 @@
 
 import urllib.request as request
 import urllib.error
-import lxml.html as lhtml
 import pandas as pd
-import requests
 from bs4 import BeautifulSoup as bs
-import re
-import time
+import re, time, requests, sys, getopt
+
+help_message = """ 
+Usage: drafter.py
+Optional arguments:
+    -h --help       Returns this message
+    -d --download   Downloads data from Fangraphs first (this may take a while!)
+                    Not compatible with -i
+    -i --inFile     Input file to use instead of downloading Fangraphs data
+                    (defaults to projection_db.csv in the current directory)
+                    Not compatible with -d or -o
+    -o --outFile    Output file to use for downloaded Fangraphs data
+                    (defaults to projection_db.csv in the current directory)
+                    Requires -d argument. Not compatible with -i
+"""
 
 projection_types = ['steamer']
 
@@ -92,7 +103,7 @@ def get_stat_names(projection_db):
             for stat_name in [cell.string for cell in stat_table.find_all('th')]:
                 projection_db.setdefault(stat_name, [])
 
-def get_fangraphs_projections():
+def get_fangraphs_projections(outFile):
     """ Retrieve the projection data from FanGraphs, player by player """
 
     # If behind Intel proxy server, set up proxy support
@@ -109,11 +120,38 @@ def get_fangraphs_projections():
     for i in [15502,11579,11493,3543]:
         url = "{}{}".format(url_prefix,i)
         get_single_player_projection(url, projection_db)
-        time.sleep(10)
 
     df = pd.DataFrame(projection_db)
-    df.to_csv(r"c:\\users\\nmebane\\desktop\\projection_db.txt")
+    df.to_csv(outFile)
     return projection_db
 
+def parse_args(argv):
+    """ Parse the passed-in command line arguments into the appropriate
+        parameters """
+    in_file = "projection_db.csv"
+    out_file = "projection_db.csv"
+    download_data = False
+    try:
+        opts, args = getopt.getopt(argv,"hdi:o:",["help","download","in_file=","out_file="])
+    except getopt.GetoptError:
+        print(help_message)
+        sys.exit(2)
+    for opt, arg in opts:
+        if opt == '-h':
+            print(help_message)
+            sys.exit()
+        elif opt in ('-d', '--download'):
+            download_data = True
+        elif opt in ('-i', '--in_file'):
+            in_file = arg
+        elif opt in ('o', '--out_file'):
+            out_file = arg
+    return in_file, out_file, download_data
+
+def main(argv):
+    in_file, out_file, download_data = parse_args(argv)
+    if download_data:
+        get_fangraphs_projections(out_file)
+
 if __name__ == "__main__":
-    get_fangraphs_projections()
+    main(sys.argv[1:])

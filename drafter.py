@@ -9,23 +9,7 @@ import urllib.request as request
 import urllib.error
 import pandas as pd
 from bs4 import BeautifulSoup as bs
-import re, time, requests, sys, getopt
-
-help_message = """ 
-Usage: drafter.py
-Optional arguments:
-    -h --help       Returns this message
-    -d --download   Downloads data from Fangraphs first (this may take a while!)
-                    Not compatible with -i
-    -i --inFile     Input file to use instead of downloading Fangraphs data
-                    (defaults to projection_db.csv in the current directory)
-                    Not compatible with -d or -o
-    -o --outFile    Output file to use for downloaded Fangraphs data
-                    (defaults to projection_db.csv in the current directory)
-                    Requires -d argument. Not compatible with -i
-"""
-
-projection_types = ['steamer']
+import re, time, requests, sys, argparse
 
 def setup_intel_proxy():
     """ This is only required when at Intel, to navigate through the proxy """
@@ -117,7 +101,7 @@ def get_fangraphs_projections(outFile):
     get_stat_names(projection_db)
     # Retrieve all of the available data for each player
     url_prefix = "https://www.fangraphs.com/statss.aspx?playerid="
-    for i in [15502,11579,11493,3543]:
+    for i in range(20000):
         url = "{}{}".format(url_prefix,i)
         get_single_player_projection(url, projection_db)
 
@@ -125,33 +109,48 @@ def get_fangraphs_projections(outFile):
     df.to_csv(outFile)
     return projection_db
 
-def parse_args(argv):
+def parse_args():
     """ Parse the passed-in command line arguments into the appropriate
         parameters """
-    in_file = "projection_db.csv"
-    out_file = "projection_db.csv"
-    download_data = False
-    try:
-        opts, args = getopt.getopt(argv,"hdi:o:",["help","download","in_file=","out_file="])
-    except getopt.GetoptError:
-        print(help_message)
+    parser=argparse.ArgumentParser(
+    description="Tool for making decisions in a fantasy baseball draft",
+    epilog="")
+    parser.add_argument('-d', '--download', default=False, action="store_true", help=
+                        """ Downloads data from Fangraphs first (this may take a while!)
+                        Not compatible with -i """)
+    parser.add_argument('-i','--in_file', type=str, default="", help=
+                        """ Input file to use instead of downloading Fangraphs data
+                        (defaults to projection_db.csv in the current directory)
+                        Not compatible with -d or -o""")
+    parser.add_argument('-o ','--out_file', type=str, default="", help=
+                        """ Output file to use for downloaded Fangraphs data
+                        (defaults to projection_db.csv in the current directory)
+                        Requires -d argument. Not compatible with -i""")
+    args=parser.parse_args()
+
+    # Check for collisions
+    if args.in_file and args.download:
+        print("Must use download OR supply in_file OR neither, not both.")
         sys.exit(2)
-    for opt, arg in opts:
-        if opt == '-h':
-            print(help_message)
-            sys.exit()
-        elif opt in ('-d', '--download'):
-            download_data = True
-        elif opt in ('-i', '--in_file'):
-            in_file = arg
-        elif opt in ('o', '--out_file'):
-            out_file = arg
-    return in_file, out_file, download_data
+    if args.in_file and args.out_file:
+        print("Cannot have both in_file and out_file.")
+        sys.exit(2)
+    if args.out_file and not args.download:
+        print("Cannot supply out_file without download.")
+        sys.exit(2)
+
+    # Set defaults that could not be set earlier
+    if not args.in_file:
+        in_file = "projection_db.csv"
+    if not args.out_file:
+        in_file = "projection_db.csv"
+
+    return args
 
 def main(argv):
-    in_file, out_file, download_data = parse_args(argv)
-    if download_data:
-        get_fangraphs_projections(out_file)
+    args = parse_args()
+    if args.download:
+        get_fangraphs_projections(args.out_file)
 
 if __name__ == "__main__":
     main(sys.argv[1:])
